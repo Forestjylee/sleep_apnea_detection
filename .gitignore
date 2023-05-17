@@ -1,0 +1,11 @@
+*.pkl
+*.pyc
+*.edf
+*.pdf
+*.png
+*.zip
+*.h5
+*.svg
+
+**/__pycache__
+.vscode/
