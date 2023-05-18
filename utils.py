@@ -2,9 +2,12 @@ import os
 import pywt
 import pickle
 import bisect
+import typing
 import numpy as np
 from copy import deepcopy
 import matplotlib.pyplot as plt
+
+from config import settings
 
 
 def check_path_exist(path, is_raise: bool=True, is_create: bool=False) -> bool:
@@ -21,10 +24,18 @@ def check_path_exist(path, is_raise: bool=True, is_create: bool=False) -> bool:
         return False
 
 
+def save_as_pickle(data_to_save: typing.Any, filepath: str):
+    with open(filepath, "wb") as f:
+        pickle.dump(data_to_save, f)
+
+
 def read_pickle(filepath: str):
-    with open(filepath, 'rb') as fr:
-        data = pickle.load(fr)
-    return data
+    with open(filepath, "rb") as f:
+        return pickle.load(f)
+    
+
+def path_join_output_folder(path: str):
+    return os.path.join(settings.output_folder, path)
 
 
 def label_interceptor(label_list: list):

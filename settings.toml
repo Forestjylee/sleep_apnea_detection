@@ -10,3 +10,5 @@ mesa_sleep_apnea_label_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\
 
 train_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\train_data"
 test_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\test_data"
+
+output_folder = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\outputs"

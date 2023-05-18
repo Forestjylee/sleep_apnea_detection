@@ -2,19 +2,15 @@ import os
 import pickle
 import typing
 import random
+import traceback
 import numpy as np
 from enum import Enum
 from tqdm import tqdm
 from pprint import pprint
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from multiprocessing import cpu_count, Pool, Manager
 
-
-raw_signal_folder = r"C:\Users\forestjylee\Developer\PythonProject\shhs_experiment\shhs1_respiration_signals"
-AHI_source_folder = r"C:\Users\forestjylee\Developer\PythonProject\shhs_experiment\AHI_source"
-AHI_label_folder = r"C:\Users\forestjylee\Developer\PythonProject\shhs_experiment\AHI_events"
-
-
-SENSOR_NAMES = ["ABDO", "THOR", "NEW"]
+from config import settings
+from utils import check_path_exist, read_pickle, save_as_pickle, path_join_output_folder
 
 
 class SleepApneaIntensity(Enum):
@@ -24,11 +20,13 @@ class SleepApneaIntensity(Enum):
     Severe = 3
 
 
-def get_actual_sleep_duration_time(record_name: str) -> int:
-    label_xml_filepath = os.path.join(AHI_source_folder, f"{record_name}-nsrr.xml")
-    sleep_duration_time = 0
+def get_actual_sleep_duration_time(record_name: str, source_label_folder) -> int:
+    # I think the actucal sleep duration time is the start time of last WAKE stage
+    # So we need to get the last WAKE stage time
+    label_xml_filepath = os.path.join(source_label_folder, f"{record_name}-nsrr.xml")
+    sleep_duration_time = -1
     try:
-        with open(label_xml_filepath, 'r', encoding='utf-8') as fr:
+        with open(label_xml_filepath, "r", encoding="utf-8") as fr:
             all_lines = fr.readlines()
             raw_duration_line = all_lines[-5].strip()
             sleep_duration_time = int(float(raw_duration_line[7:-8]))
@@ -36,140 +34,204 @@ def get_actual_sleep_duration_time(record_name: str) -> int:
         return sleep_duration_time
 
 
-def get_SA_intensity_by_ahi_amonut(ahi_amount) -> SleepApneaIntensity:
-    """0:正常Normal  1:轻度Mild  2:中度Moderate   3:重度Severe"""
-    if ahi_amount < 5:
+def get_sleep_apnea_intensity_by_ahi(ahi) -> SleepApneaIntensity:
+    """According to AASM
+    0:正常Normal  1:轻度Mild  2:中度Moderate   3:重度Severe"""
+    if ahi < 5:
         return SleepApneaIntensity.Normal
-    elif ahi_amount < 15:
+    elif ahi < 15:
         return SleepApneaIntensity.Mild
-    elif ahi_amount < 30:
+    elif ahi < 30:
         return SleepApneaIntensity.Moderate
     else:  # >=30
         return SleepApneaIntensity.Severe
 
 
-def save_as_pickle(data_to_save: typing.Any, filepath: str) -> bool:
-    """将任何Python数据结构以pickle的形式序列化存储到指定文件中
+def convert_sleep_apnea_intensity_dict_to_record_name_list(
+    samples_SA_intensity: typing.Dict[SleepApneaIntensity, list]
+) -> typing.List[str]:
+    record_names = []
+    for v in samples_SA_intensity.values():
+        record_names.extend(v)
+    return record_names
 
-    Args:
-        filepath (str): 目标文件地址
+
+def get_sample_ahi(
+    record_name: str, source_label_folder: str, sleep_apnea_label_folder: str
+) -> float:
+    """
+    AHI(Apnea-Hypopnea Index) = (amount of apnea/hypopnea events) / sleep hours
 
     Returns:
-        bool: 是否保存成功
+        float: AHI
+    """
+    sleep_length_secs = get_actual_sleep_duration_time(record_name, source_label_folder)
+    sa_label_path = os.path.join(
+        sleep_apnea_label_folder, f"{record_name}_sa_events.pkl"
+    )
+
+    sleep_apnea_label_datas = read_pickle(sa_label_path)
+
+    during_hour = sleep_length_secs / 3600
+    ahi = len(sleep_apnea_label_datas) / during_hour
+    return ahi
+
+
+def _select_sample_according_to_rules(
+    record_name: str,
+    sensor_names_to_check: typing.List[str],
+    raw_data_folder: str,
+    source_label_folder: str,
+    sleep_apnea_label_folder: str,
+    results,
+    errors,
+) -> typing.Tuple[str, SleepApneaIntensity, int]:
+    """
+    Drop sample according to rules:
+    1. Lack of sensor data
+    2. Cannot get sleep duration time
+    3. sleep duration time less than 6 hours
+
+    Returns:
+        SleepApneaIntensity: sleep apnea intensity
     """
     try:
-        with open(filepath, "wb") as f:
-            pickle.dump(data_to_save, f)
-        return True
-    except Exception as e:
-        return False
+        # for sensor_name in sensor_names_to_check:
+        #     raw_signal_filepath = os.path.join(
+        #         raw_data_folder, f"{record_name}_{sensor_name}.pkl"
+        #     )
+        #     if not os.path.exists(raw_signal_filepath):
+        #         return None
 
-
-def read_pickle(filepath: str) -> None:
-    if not os.path.exists(filepath):
-        print(f"{filepath} is not exists.")
-        return []
-
-    with open(filepath, "rb") as f:
-        return pickle.load(f)
-
-
-def get_sample_SA_intensity(record_name: str) -> typing.Tuple[str, SleepApneaIntensity, int]:
-    """根据标签文件中SA事件的数量, 得到当前样本的SA严重程度
-    1、只有包含所有SENSOR_NAMES中传感器原始数据的样本会被统计
-    2、只有有效睡眠长度超过6小时的样本才被统计
-
-    Args:
-        record_name (str): _description_
-
-    Returns:
-        typing.Tuple[str, SleepApneaIntensity, int]: SA严重程度, ahi事件数量
-    """
-    for sensor_name in SENSOR_NAMES:
-        raw_signal_filepath = os.path.join(raw_signal_folder, f"{record_name}_{sensor_name}.pkl")
-        if not os.path.exists(raw_signal_filepath):
-            print(f"{record_name} donot have raw {sensor_name} signal data!")
+        sleep_length_secs = get_actual_sleep_duration_time(
+            record_name, source_label_folder
+        )
+        if sleep_length_secs == -1:
             return None
-    sleep_length_secs = get_actual_sleep_duration_time(record_name)
-    if sleep_length_secs == -1:
-        return None
-    ahi_label_filepath = os.path.join(AHI_label_folder, f"{record_name}_AHI.pkl")
-    if not os.path.exists(ahi_label_filepath):
-        print(f"{record_name} donot have ahi labels!")
-        return None
-    
-    during_hour = sleep_length_secs / 3600   # 数据长度
-    if during_hour < 6:  # 判断数据是否超过6个小时
-        return None
-    
-    with open(ahi_label_filepath, 'rb') as f:
-        sleep_apnea_label_datas = pickle.load(f)
-    # for start_sec, duration, event_index, signal_source_type in sleep_apnea_label_datas:
-    #     pass
-    ahi_amount = len(sleep_apnea_label_datas) / during_hour
-    return record_name, get_SA_intensity_by_ahi_amonut(ahi_amount), ahi_amount
+
+        during_hour = sleep_length_secs / 3600
+        if during_hour < 6:
+            return None
+
+        ahi = get_sample_ahi(record_name, source_label_folder, sleep_apnea_label_folder)
+        sleep_apnea_intensity = get_sleep_apnea_intensity_by_ahi(ahi)
+
+        results.put((record_name, sleep_apnea_intensity))
+
+        return sleep_apnea_intensity
+    except Exception as e:
+        errors.put(record_name)
 
 
-def classify_all_samples(AHI_label_folder: str, start_index: int=0):
-    if not os.path.exists(AHI_label_folder):
-        print(f"{AHI_label_folder}标签文件夹路径不存在")
-        return
-    
+def select_samples_from_all(
+    sensor_names_to_check: typing.List[str],
+    raw_data_folder: str,
+    source_label_folder: str,
+    sleep_apnea_label_folder: str,
+    is_multiprocess: bool = True,
+) -> typing.Dict[SleepApneaIntensity, typing.List[str]]:
+    check_path_exist(raw_data_folder)
+    check_path_exist(source_label_folder)
+    check_path_exist(sleep_apnea_label_folder)
+
     all_samples_SA_intensity = {
         SleepApneaIntensity.Normal: [],
         SleepApneaIntensity.Mild: [],
         SleepApneaIntensity.Moderate: [],
-        SleepApneaIntensity.Severe: []
+        SleepApneaIntensity.Severe: [],
     }
-    
-    label_file_names = [label_file_name for label_file_name in os.listdir(
-        AHI_source_folder)][start_index:]
-    
-    with ThreadPoolExecutor(max_workers=12) as w:
-        futures = [
-            w.submit(
-                get_sample_SA_intensity, 
-                f"{label_file_name.split('-')[0]}-{label_file_name.split('-')[1]}") 
-            for label_file_name in label_file_names
-        ]
-        
-        for future in as_completed(futures):
-            res = future.result()
+
+    if is_multiprocess is False:
+        for sleep_apnea_label_file in tqdm(
+            os.listdir(sleep_apnea_label_folder), desc="Selecting samples"
+        ):
+            if not sleep_apnea_label_file.endswith(".pkl"):
+                continue
+
+            record_name = sleep_apnea_label_file.split("_")[0]
+            res = _select_sample_according_to_rules(
+                record_name,
+                sensor_names_to_check,
+                raw_data_folder,
+                source_label_folder,
+                sleep_apnea_label_folder,
+            )
             if res is not None:
-                all_samples_SA_intensity[res[1]].append(res[0])
-                print(f"{res[0]} done")
-    
-    for key in all_samples_SA_intensity.keys():
-        print(f"key: {key.name}, amount: {len(all_samples_SA_intensity[key])}")
-    
-    save_res = save_as_pickle(all_samples_SA_intensity, f"samples_SA_intensity.pkl")
-    if save_res is True:
-        print("保存样本呼吸暂停严重情况成功!")
+                all_samples_SA_intensity[res].append(record_name)
     else:
-        print("保存样本呼吸暂停严重情况失败")
-        
-        
-def AHI_amount_statistics(samples_SA_intensity_filepath: str):
-    with open(samples_SA_intensity_filepath, "rb") as f:
-        samples_SA_intensity = pickle.load(f)
+        label_file_names = os.listdir(sleep_apnea_label_folder)
+        pbar = tqdm(total=len(label_file_names))
+        pbar.set_description("Selecting samples")
+        update = lambda *args: pbar.update()
+        with Pool(processes=cpu_count() - 1) as pool:
+            m = Manager()
+            errors = m.Queue()
+            results = m.Queue()
+            for label_file_name in label_file_names:
+                record_name = label_file_name.split("_")[0]
+                pool.apply_async(
+                    _select_sample_according_to_rules,
+                    args=(
+                        record_name,
+                        sensor_names_to_check,
+                        raw_data_folder,
+                        source_label_folder,
+                        sleep_apnea_label_folder,
+                        results,
+                        errors,
+                    ),
+                    callback=update,
+                )
+            pool.close()
+            pool.join()
+        pbar.close()
+
+        while not results.empty():
+            tmp = results.get()
+            all_samples_SA_intensity[tmp[1]].append(tmp[0])
+
+        if not errors.empty():
+            print(f"Error label file names: ")
+            errs = []
+            while not errors.empty():
+                errs.append(errors.get())
+            pprint(errs)
+        else:
+            print("All label files processed successfully!")
+
+    return all_samples_SA_intensity
+
+
+def samples_SA_statistics(
+    samples_SA_intensity_filepath: str,
+    source_label_folder: str,
+    sleep_apnea_label_folder: str,
+):
+    samples_SA_intensity = read_pickle(samples_SA_intensity_filepath)
     for key in samples_SA_intensity.keys():
         print(f"key: {key.name}, amount: {len(samples_SA_intensity[key])}")
-        ahi_amounts = []
-        for record_name in tqdm(samples_SA_intensity[key], desc=f"Processing {key.name}"):
-            _, _, ahi_amount = get_sample_SA_intensity(record_name)
-            ahi_amounts.append(ahi_amount)
-        ahi_array = np.array(ahi_amounts)
+        ahis = []
+        for record_name in tqdm(
+            samples_SA_intensity[key], desc=f"Processing {key.name}"
+        ):
+            ahi = get_sample_ahi(
+                record_name, source_label_folder, sleep_apnea_label_folder
+            )
+            ahis.append(ahi)
+        ahi_array = np.array(ahis)
         print(f"Mean: {np.mean(ahi_array)}, std: {np.std(ahi_array)}")
-        
 
 
-def select_samples_in_specific_ratio(
-    samples_ratio_dict: typing.Dict[SleepApneaIntensity, int], random_selection: bool
+def select_samples_in_specific_amount(
+    samples_SA_intensity_path: str,
+    samples_amount_dict: typing.Dict[SleepApneaIntensity, int],
+    random_select: bool,
+    random_seed: int = 42,
 ) -> typing.Dict[SleepApneaIntensity, list]:
     """根据SA严重程度比例挑选出样本
 
     Args:
-        samples_ratio_dict (typing.Dict[SleepApneaIntensity, int]): {
+        samples_amount_dict (typing.Dict[SleepApneaIntensity, int]): {
             SleepApneaIntensity.Normal: 250,
             SleepApneaIntensity.Mild: 250,
             SleepApneaIntensity.Moderate: 250,
@@ -185,42 +247,76 @@ def select_samples_in_specific_ratio(
             SleepApneaIntensity.Severe: [...]
         }
     """
-    samples_SA_intensity_filepath = f"samples_SA_intensity.pkl"
-    if not os.path.exists(samples_SA_intensity_filepath):
-        print(f"SA intensity file has not been generated.")
-        return []
+    check_path_exist(samples_SA_intensity_path)
 
-    with open(samples_SA_intensity_filepath, "rb") as f:
-        samples_SA_intensity = pickle.load(f)
-    print("Selecting samples...")
-    for key in samples_SA_intensity.keys():
-        if samples_ratio_dict.get(key) is None:
+    samples_SA_intensity = read_pickle(samples_SA_intensity_path)
+    for key in tqdm(list(samples_SA_intensity.keys()), desc="Selecting samples"):
+        if samples_amount_dict.get(key) is None:
             samples_SA_intensity[key] = []
             continue
-        if len(samples_SA_intensity[key]) < samples_ratio_dict[key]:
-            print(f"{key.name}类型样本的数量小于{samples_ratio_dict[key]}")
-            return []
-        if random_selection is True:
-            samples_SA_intensity[key] = random.sample(samples_SA_intensity[key], samples_ratio_dict[key])
+        if len(samples_SA_intensity[key]) < samples_amount_dict[key]:
+            raise ValueError(f"{key.name}类型样本的数量小于{samples_amount_dict[key]}")
+
+        if random_select is True:
+            random.seed(random_seed)
+            samples_SA_intensity[key] = random.sample(
+                samples_SA_intensity[key], samples_amount_dict[key]
+            )
         else:
-            samples_SA_intensity[key] = samples_SA_intensity[key][:samples_ratio_dict[key]]
+            samples_SA_intensity[key] = samples_SA_intensity[key][
+                : samples_amount_dict[key]
+            ]
     return samples_SA_intensity
 
 
 if __name__ == "__main__":
-    # run this firstly
-    # classify_all_samples(AHI_label_folder, start_index=0)
-    AHI_amount_statistics("samples_SA_intensity.pkl")
+    ## Some data storage path
+    ## shhs1
+    sensors_to_check = ["ABDO", "THOR", "NEW"]
+    raw_data_folder = settings.shhs1_raw_data_path
+    source_label_folder = settings.shhs1_source_sleep_apnea_label_path
+    sleep_apnea_label_folder = settings.shhs1_sleep_apnea_label_path
+    samples_SA_intensity_path = path_join_output_folder(
+        "shhs1_all_samples_SA_intensity_info.pkl"
+    )
 
-    # samples_ratio_dict = {
-    #     # SleepApneaIntensity.Normal: 50,
-    #     # SleepApneaIntensity.Mild: 50,
-    #     # SleepApneaIntensity.Moderate: 50,
-    #     SleepApneaIntensity.Severe: 50
+    ## mesa
+    # sensors_to_check = ["Abdo", "Thor", "Flow"]
+    # raw_data_folder = settings.mesa_raw_data_path
+    # source_label_folder = settings.mesa_source_sleep_apnea_label_path
+    # sleep_apnea_label_folder = settings.mesa_sleep_apnea_label_path
+    # samples_SA_intensity_path = path_join_output_folder("mesa_all_samples_SA_intensity_info.pkl")
+
+    ## Generate all samples' sleep apnea intensity info file
+    ## If you have already generated the file, just comment the following lines
+    all_samples_SA_intensity = select_samples_from_all(
+        sensor_names_to_check=sensors_to_check,
+        raw_data_folder=raw_data_folder,
+        source_label_folder=source_label_folder,
+        sleep_apnea_label_folder=sleep_apnea_label_folder,
+    )
+    pprint(all_samples_SA_intensity)
+    if all_samples_SA_intensity:
+        save_as_pickle(all_samples_SA_intensity, samples_SA_intensity_path)
+
+    ## Calculate some statistics of samples's sleep apnea info
+    samples_SA_statistics(
+        samples_SA_intensity_path, source_label_folder, sleep_apnea_label_folder
+    )
+
+    ## Select samples according to specific amount dict
+    # Change the `samples_amount_dict` to what you need
+    # samples_amount_dict = {
+    #     # SleepApneaIntensity.Normal: 10,
+    #     SleepApneaIntensity.Mild: 10,
+    #     SleepApneaIntensity.Moderate: 10,
+    #     SleepApneaIntensity.Severe: 10,
     # }
-    # sensor_name = "ABDO"    # ABDO | THOR | NEW
-    # samples_SA_intensity = read_pickle(f"{sensor_name}_samples_SA_intensity.pkl")
-    # for key in samples_SA_intensity.keys():
-    #     print(f"key: {key.name}, amount: {len(samples_SA_intensity[key])}")
-    # res = select_samples_in_specific_ratio(samples_ratio_dict, sensor_name, random_selection=False)
-    # print(res)
+    # selected_samples = select_samples_in_specific_amount(
+    #     samples_SA_intensity_path,
+    #     samples_amount_dict,
+    #     random_select=True,
+    #     random_seed=42,
+    # )
+    # pprint(selected_samples)
+    # pprint(convert_sleep_apnea_intensity_dict_to_record_name_list(selected_samples))
