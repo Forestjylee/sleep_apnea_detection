@@ -1,11 +1,12 @@
-import os
-import pywt
-import pickle
 import bisect
+import os
+import pickle
 import typing
-import numpy as np
 from copy import deepcopy
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pywt
 
 from config import settings
 
@@ -35,7 +36,8 @@ def read_pickle(filepath: str):
     
 
 def path_join_output_folder(path: str):
-    return os.path.join(settings.output_folder, path)
+    check_path_exist(settings.output_root_folder, is_raise=False, is_create=True)
+    return os.path.join(settings.output_root_folder, path)
 
 
 def label_interceptor(label_list: list):
@@ -77,7 +79,7 @@ def get_data_list_in_range(sorted_data_list: list, low_threshold: int, high_thre
     return new_list
 
 
-def plot_anything(data_to_plot: list, block: bool = True, is_save = False, fig_name = "fig.png") -> None:
+def plot_anything(data_to_plot: list, block: bool = True, is_save = False, fig_name = "fig.png", title: str = "Title") -> None:
     """
     As you see, plot anything in one figure.
     data_to_plot: e.g.: [(x1_list, y1_list), (y2_list), (x3_list, y3_list), ...]
@@ -87,6 +89,8 @@ def plot_anything(data_to_plot: list, block: bool = True, is_save = False, fig_n
     amount = len(data)
     if amount >= 10:
         data = data[:9]
+        
+    plt.title(title)
     fig = plt.figure(10 + amount)
     ax = fig.add_subplot(amount*100+11)
     

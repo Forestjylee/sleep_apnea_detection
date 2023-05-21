@@ -1,16 +1,17 @@
 import os
 import pickle
-import typing
 import random
 import traceback
-import numpy as np
+import typing
 from enum import Enum
-from tqdm import tqdm
+from multiprocessing import Manager, Pool, cpu_count
 from pprint import pprint
-from multiprocessing import cpu_count, Pool, Manager
+
+import numpy as np
+from tqdm import tqdm
 
 from config import settings
-from utils import check_path_exist, read_pickle, save_as_pickle, path_join_output_folder
+from utils import check_path_exist, path_join_output_folder, read_pickle, save_as_pickle
 
 
 class SleepApneaIntensity(Enum):
@@ -96,12 +97,12 @@ def _select_sample_according_to_rules(
         SleepApneaIntensity: sleep apnea intensity
     """
     try:
-        # for sensor_name in sensor_names_to_check:
-        #     raw_signal_filepath = os.path.join(
-        #         raw_data_folder, f"{record_name}_{sensor_name}.pkl"
-        #     )
-        #     if not os.path.exists(raw_signal_filepath):
-        #         return None
+        for sensor_name in sensor_names_to_check:
+            raw_signal_filepath = os.path.join(
+                raw_data_folder, f"{record_name}_{sensor_name}.pkl"
+            )
+            if not os.path.exists(raw_signal_filepath):
+                return None
 
         sleep_length_secs = get_actual_sleep_duration_time(
             record_name, source_label_folder
@@ -195,7 +196,8 @@ def select_samples_from_all(
             errs = []
             while not errors.empty():
                 errs.append(errors.get())
-            pprint(errs)
+            print(errs)
+            print(f"There are {len(errs)} samples with errors.")
         else:
             print("All label files processed successfully!")
 
@@ -208,6 +210,7 @@ def samples_SA_statistics(
     sleep_apnea_label_folder: str,
 ):
     samples_SA_intensity = read_pickle(samples_SA_intensity_filepath)
+    available_samples_amount = 0
     for key in samples_SA_intensity.keys():
         print(f"key: {key.name}, amount: {len(samples_SA_intensity[key])}")
         ahis = []
@@ -220,6 +223,8 @@ def samples_SA_statistics(
             ahis.append(ahi)
         ahi_array = np.array(ahis)
         print(f"Mean: {np.mean(ahi_array)}, std: {np.std(ahi_array)}")
+        available_samples_amount += len(ahis)
+    print(f"There are {available_samples_amount} samples available in total.")
 
 
 def select_samples_in_specific_amount(
@@ -295,9 +300,11 @@ if __name__ == "__main__":
         source_label_folder=source_label_folder,
         sleep_apnea_label_folder=sleep_apnea_label_folder,
     )
-    pprint(all_samples_SA_intensity)
     if all_samples_SA_intensity:
         save_as_pickle(all_samples_SA_intensity, samples_SA_intensity_path)
+        print(
+            f"All samples' sleep apnea intensity info file saved to {samples_SA_intensity_path}"
+        )
 
     ## Calculate some statistics of samples's sleep apnea info
     samples_SA_statistics(
