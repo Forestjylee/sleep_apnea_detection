@@ -13,3 +13,6 @@ validation_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_
 test_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\test_data"
 
 output_root_folder = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\outputs"
+
+
+sample_rate = 10
