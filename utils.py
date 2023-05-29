@@ -11,6 +11,14 @@ import pywt
 from config import settings
 
 
+SLEEP_APNEA_EVENT_MAPPER = {
+    0: "Normal",
+    1: "Hypopnea",
+    2: "Obstructive apnea",
+    3: "Central apnea",
+}
+
+
 def check_path_exist(path, is_raise: bool = True, is_create: bool = False) -> bool:
     if os.path.exists(path):
         return True
@@ -100,8 +108,8 @@ def plot_anything(
     if amount >= 10:
         data = data[:9]
 
-    plt.title(title)
     fig = plt.figure(10 + amount)
+    fig.suptitle(title)
     ax = fig.add_subplot(amount * 100 + 11)
 
     each = data[0]
@@ -183,6 +191,20 @@ def plot_signal_decomp(data, w, title):
         ax.set_xlim(0, len(y) - 1)
         ax.set_ylabel("D%d" % (i + 1))
     plt.show()
+
+
+def get_actual_sleep_duration_time(record_name: str, source_label_folder) -> int:
+    # I think the actucal sleep duration time is the start time of last WAKE stage
+    # So we need to get the last WAKE stage time
+    label_xml_filepath = os.path.join(source_label_folder, f"{record_name}-nsrr.xml")
+    sleep_duration_time = -1
+    try:
+        with open(label_xml_filepath, "r", encoding="utf-8") as fr:
+            all_lines = fr.readlines()
+            raw_duration_line = all_lines[-5].strip()
+            sleep_duration_time = int(float(raw_duration_line[7:-8]))
+    finally:
+        return sleep_duration_time
 
 
 def transform_label_data_to_uniform_format(

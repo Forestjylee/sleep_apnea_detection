@@ -1,4 +1,5 @@
 import os
+import glob
 import pickle
 import typing
 from copy import deepcopy
@@ -10,64 +11,18 @@ from kymatio.numpy import Scattering1D
 from tqdm import tqdm
 
 from config import settings
+from display_data import plot_sensor_and_label_data_use_matplotlib
 from select_samples import SleepApneaIntensity
 from sleep_data_obj import SleepData
-from utils import (check_path_exist,
-                   get_sleep_apnea_label_list_according_to_data_length,
-                   path_join_output_folder, plot_anything, read_pickle,
-                   transform_label_data_to_uniform_format)
-
-
-def get_actual_sleep_duration_time(record_name: str, source_label_folder) -> int:
-    # I think the actucal sleep duration time is the start time of last WAKE stage
-    # So we need to get the last WAKE stage time
-    label_xml_filepath = os.path.join(source_label_folder, f"{record_name}-nsrr.xml")
-    sleep_duration_time = -1
-    try:
-        with open(label_xml_filepath, "r", encoding="utf-8") as fr:
-            all_lines = fr.readlines()
-            raw_duration_line = all_lines[-5].strip()
-            sleep_duration_time = int(float(raw_duration_line[7:-8]))
-    finally:
-        return sleep_duration_time
-
-
-def plot_aligned_raw_data_and_label(
-    record_name: str,
-    sensor_name: str,
-    raw_data_folder: str,
-    sleep_apnea_label_folder: str,
-):
-    raw_data_filepath = os.path.join(
-        raw_data_folder, f"{record_name}_{sensor_name}.pkl"
-    )
-    sa_label_filepath = os.path.join(
-        sleep_apnea_label_folder, f"{record_name}_sa_events.pkl"
-    )
-
-    check_path_exist(raw_data_filepath)
-    check_path_exist(sa_label_filepath)
-
-    # Read raw data
-    data_dict = read_pickle(raw_data_filepath)
-    raw_data = data_dict["data"]
-    sample_rate = data_dict["sample_rate"]
-
-    # Read sleep apnea label
-    raw_sleep_apnea_label_data = read_pickle(sa_label_filepath)
-
-    # Transform label format and align with raw data
-    uniform_format_sleep_apnea_label_data = transform_label_data_to_uniform_format(
-        raw_sleep_apnea_label_data, sample_rate
-    )
-    sleep_apnea_label_list = get_sleep_apnea_label_list_according_to_data_length(
-        uniform_format_sleep_apnea_label_data, len(raw_data)
-    )
-
-    # print(f"{record_name} apnea segments: {len(raw_sleep_apnea_label_data)}")
-    plot_anything(
-        [raw_data, sleep_apnea_label_list], title="Aligned raw data and label"
-    )
+from utils import (
+    check_path_exist,
+    get_actual_sleep_duration_time,
+    get_sleep_apnea_label_list_according_to_data_length,
+    path_join_output_folder,
+    plot_anything,
+    read_pickle,
+    transform_label_data_to_uniform_format,
+)
 
 
 def test_data_preprocess_method(record_name: str, sensor_name: str):
@@ -249,14 +204,21 @@ def plot_signal_decomp(data, w, title):
 
 if __name__ == "__main__":
     raw_data_folder = settings.shhs1_raw_data_path
-    source_label_folder = settings.shhs1_source_sleep_apnea_label_path
     sleep_apnea_label_folder = settings.shhs1_sleep_apnea_label_path
-    samples_SA_intensity_filepath = path_join_output_folder(
-        "shhs1_all_samples_SA_intensity_info.pkl"
-    )
 
+    sensor_names = ["ABDO", "THOR", "NEW"]
     record_name = "shhs1-200001"
-    sensor_name = "ABDO"  # ABDO / THOR / NEW（鼻气流
-    plot_aligned_raw_data_and_label(
-        record_name, sensor_name, raw_data_folder, sleep_apnea_label_folder
-    )
+    sample_rate = settings.sample_rate
+
+    # shhs1-200015 weak signal
+    for record_file in glob.glob(os.path.join(raw_data_folder, f"*_ABDO.pkl")):
+        record_name = record_file.split("\\")[-1].split("_")[0]
+        print(record_name)
+        plot_sensor_and_label_data_use_matplotlib(
+            sensor_names=sensor_names,
+            record_name=record_name,
+            sample_rate=sample_rate,
+            raw_data_folder=raw_data_folder,
+            sleep_apnea_label_folder=sleep_apnea_label_folder,
+            title=f"{record_name}'s sensor data and label data",
+        )
