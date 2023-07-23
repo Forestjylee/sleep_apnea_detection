@@ -2,17 +2,24 @@ shhs1_source_edf_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep
 shhs1_raw_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\raw_data"
 shhs1_source_sleep_apnea_label_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\source_labels"
 shhs1_sleep_apnea_label_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\label_data"
+shhs1_samples_SA_intensity_info_filename = "shhs1_all_samples_SA_intensity_info.pkl"
+shhs1_train_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\train_data"
+shhs1_validation_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\validation_data"
+shhs1_test_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\test_data"
 
 mesa_source_edf_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\mesa\\source_edfs"
 mesa_raw_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\mesa\\raw_data"
 mesa_source_sleep_apnea_label_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\mesa\\source_labels"
 mesa_sleep_apnea_label_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\mesa\\label_data"
-
-train_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\train_data"
-validation_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\validation_data"
-test_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\shhs1\\test_data"
+mesa_samples_SA_intensity_info_filename = "mesa_all_samples_SA_intensity_info.pkl"
+mesa_train_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\mesa\\train_data"
+mesa_validation_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\mesa\\validation_data"
+mesa_test_data_path = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\data\\mesa\\test_data"
 
 output_root_folder = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\outputs"
 
 
-sample_rate = 10
+resample_rate = 10
+window_length_secs = 10
+window_slide_stride_secs = 2
+sleep_apnea_overlap_length_secs = 4

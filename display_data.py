@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
     sensor_names = ["ABDO", "THOR", "NEW"]
     record_name = "shhs1-200001"
-    sample_rate = settings.sample_rate
+    sample_rate = settings.resample_rate
 
     ## Matplotlib(recommanded)
     plot_sensor_and_label_data_use_matplotlib(
