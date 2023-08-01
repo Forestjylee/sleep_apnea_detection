@@ -24,8 +24,8 @@ def check_path_exist(path, is_raise: bool = True, is_create: bool = False) -> bo
         return True
     else:
         if is_create is True:
-            res = input(f"Path <{path}> does not exist. Create it? [Y/n]")
-            if res.lower() == "y":
+            res = input(f"Path <{path}> does not exist. Create it? ([Y]/n)")
+            if res is None or res.lower() == "y":
                 os.makedirs(path)
                 return False
         if is_raise is True:

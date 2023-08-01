@@ -2,6 +2,8 @@ import os
 import pywt
 import pickle
 import shutil
+import random
+import typing
 import numpy as np
 from tqdm import tqdm
 from copy import deepcopy
@@ -14,6 +16,7 @@ from config import settings
 from sleep_data_obj import SleepData
 from utils import (
     plot_anything,
+    save_as_pickle,
     check_path_exist,
     transform_label_data_to_uniform_format,
     get_actual_sleep_duration_time,
@@ -21,13 +24,54 @@ from utils import (
 )
 
 
-raw_signal_folder = r"C:\Users\forestjylee\Developer\PythonProject\shhs_experiment\shhs1_respiration_signals"
-SHHS_labels_source_folder = (
-    r"C:\Users\forestjylee\Developer\PythonProject\shhs_experiment\AHI_source"
-)
-AHI_label_folder = (
-    r"C:\Users\forestjylee\Developer\PythonProject\shhs_experiment\AHI_events"
-)
+def get_record_names_from_SA_intensity_file(samples_SA_intensity_filepath: str):
+    record_names = []
+    with open(samples_SA_intensity_filepath, "rb") as f:
+        samples_SA_intensity = pickle.load(f)
+    for key in samples_SA_intensity.keys():
+        record_names.extend(samples_SA_intensity[key])
+    return record_names
+
+
+def generate_train_validate_test_SA_intensity_file(
+    all_samples_SA_intensity_filepath: str, 
+    random_seed: int=42,
+    train_validate_test_ratio_dict: dict={"train": 10, "test": 0, "validate": 0}
+) -> typing.Tuple[str, str, str]:
+    """generate three SA intensity file (train, validate, test) according to all samples SA intensity file
+
+    Args:
+        all_samples_SA_intensity_filepath (str): all available samples info
+        train_validate_test_ratio_dict (_type_, optional): sum is 10. Defaults to {"train": 10, "test": 0, "validate": 0}.
+    """
+    random.seed(random_seed)
+    
+    with open(all_samples_SA_intensity_filepath, "rb") as f:
+        samples_SA_intensity = pickle.load(f)
+    
+    train_samples_SA_intensity, validate_samples_SA_intensity, test_samples_SA_intensity = {}, {}, {}
+    for key in samples_SA_intensity.keys():
+        train_offset = int(train_validate_test_ratio_dict["train"] / 10 * len(samples_SA_intensity[key]))
+        validate_offset = int(train_validate_test_ratio_dict["validate"] / 10 * len(samples_SA_intensity[key]))
+        test_offset = int(train_validate_test_ratio_dict["test"] / 10 * len(samples_SA_intensity[key]))
+        temp_record_names = samples_SA_intensity[key]
+        random.shuffle(temp_record_names)
+        train_samples_SA_intensity[key] = temp_record_names[:train_offset]
+        validate_samples_SA_intensity[key] = temp_record_names[train_offset:train_offset+validate_offset]
+        test_samples_SA_intensity[key] = temp_record_names[train_offset+validate_offset:train_offset+validate_offset+test_offset]
+    
+    folder_path = os.path.dirname(all_samples_SA_intensity_filepath)
+    filename = os.path.basename(all_samples_SA_intensity_filepath)
+
+    train_samples_SA_intensity_filapth = os.path.join(folder_path, f"train_{filename}")
+    validate_samples_SA_intensity_filapth = os.path.join(folder_path, f"validate_{filename}")
+    test_samples_SA_intensity_filepath = os.path.join(folder_path, f"test_{filename}")
+    
+    save_as_pickle(train_samples_SA_intensity, train_samples_SA_intensity_filapth)
+    save_as_pickle(validate_samples_SA_intensity, validate_samples_SA_intensity_filapth)
+    save_as_pickle(test_samples_SA_intensity, test_samples_SA_intensity_filepath)
+    
+    return train_samples_SA_intensity_filapth, validate_samples_SA_intensity_filapth, test_samples_SA_intensity_filepath
 
 
 def preprocess_raw_data(raw_datas, sample_rate) -> list:
@@ -120,7 +164,7 @@ def waveletDecompose(data, w="sym5", amount=3):
     return rec_a
 
 
-def single_process_shhs_data_for_train_test(
+def single_process_shhs_mesa_data_for_train_test(
     record_name: str,
     sensor_name: str,
     raw_data_folder: str,
@@ -303,91 +347,6 @@ def single_process_shhs_data_for_train_test(
     return record_name
 
 
-def process_all_data(
-    target_save_folder: str, sensor_name: str, start_index: int, end_index: int
-):
-    print(
-        "<----------------------------------------",
-        "Start extracting",
-        "----------------------------------------------->",
-    )
-    # clear folder
-    shutil.rmtree(target_save_folder, ignore_errors=True)
-    os.makedirs(target_save_folder, exist_ok=True)
-    print("清空文件夹成功!")
-    label_file_names = [
-        label_file_name
-        for label_file_name in os.listdir(raw_signal_folder)
-        if sensor_name in label_file_name
-    ][start_index:end_index]
-    # for label_file_name in tqdm(label_file_names, desc="Total processing"):
-    #     record_name = label_file_name.split('_')[0]
-    #     single_process_shhs_data_for_train_test(record_name, sensor_name, target_save_folder)
-    with Pool(processes=cpu_count() - 1) as pool:
-        for label_file_name in label_file_names:
-            record_name = label_file_name.split("_")[0]
-            pool.apply_async(
-                single_process_shhs_data_for_train_test,
-                args=(
-                    record_name,
-                    sensor_name,
-                    target_save_folder,
-                ),
-            )
-        pool.close()
-        pool.join()
-    print(
-        "--------------------------------------------------",
-        "---------------------------------------------------------------",
-    )
-
-
-def process_selected_samples(target_save_folder: str, sensor_name: str):
-    print(
-        "<----------------------------------------",
-        "Start extracting",
-        "----------------------------------------------->",
-    )
-    samples_ratio_dict = {
-        SleepApneaIntensity.Normal: 30,
-        SleepApneaIntensity.Mild: 30,
-        SleepApneaIntensity.Moderate: 30,
-        SleepApneaIntensity.Severe: 40,
-    }
-    selected_record_dict = select_samples_in_specific_ratio(
-        samples_ratio_dict, sensor_name, False
-    )
-
-    # clear folder
-    shutil.rmtree(target_save_folder, ignore_errors=True)
-    os.makedirs(target_save_folder, exist_ok=True)
-    print("清空文件夹成功!")
-
-    for key, record_names in selected_record_dict.items():
-        count = 0
-        for record_name in record_names:
-            try:
-                if count == 20:
-                    break
-                single_process_shhs_data_for_train_test(
-                    record_name, sensor_name, target_save_folder
-                )
-                count += 1
-            except:
-                print(key)
-
-    # with Pool(processes=cpu_count()-1) as pool:
-    #     for record_names in selected_record_dict.values():
-    #         for record_name in record_names:
-    #             pool.apply_async(single_process_shhs_data_for_train_test, args=(
-    #                 record_name, sensor_name, target_save_folder, ))
-    #     pool.close()
-    #     pool.join()
-    print(
-        "-----------------------------------------------------------------------------------------------------------------"
-    )
-
-
 def process_samples_after_sift(
     raw_data_folder: str,
     source_label_folder: str,
@@ -405,21 +364,18 @@ def process_samples_after_sift(
     if os.path.exists(target_save_folder):
         is_cover = False
         while is_cover not in ["Y", "N"]:
-            is_cover = input("是否清空原文件夹(Y/N)?")
-            if is_cover.lower() == "y":
+            is_cover = input("是否清空原文件夹([Y]/N)?")
+            if is_cover is None or is_cover.lower() == "y":
                 shutil.rmtree(target_save_folder, ignore_errors=True)
                 os.makedirs(target_save_folder, exist_ok=True)
                 print("清空文件夹成功!")
                 break
 
-    record_names = []
-    with open(samples_SA_intensity_filepath, "rb") as f:
-        samples_SA_intensity = pickle.load(f)
-    for key in samples_SA_intensity.keys():
-        record_names.extend(samples_SA_intensity[key])
+    record_names = get_record_names_from_SA_intensity_file(samples_SA_intensity_filepath)
 
+    ## Single process
     # for record_name in tqdm(record_names, desc="Total processing"):
-    #     single_process_shhs_data_for_train_test(
+    #     single_process_shhs_mesa_data_for_train_test(
     #         record_name,
     #         sensor_name,
     #         raw_data_folder,
@@ -428,14 +384,14 @@ def process_samples_after_sift(
     #         target_save_folder,
     #     )
 
-    # 多进程
+    ## Multi process
     pbar = tqdm(total=len(record_names))
     pbar.set_description("Total processing")
     update = lambda *args: pbar.update()
     with Pool(processes=cpu_count() - 2) as pool:
         for record_name in record_names:
             pool.apply_async(
-                single_process_shhs_data_for_train_test,
+                single_process_shhs_mesa_data_for_train_test,
                 args=(
                     record_name,
                     sensor_name,
@@ -458,46 +414,86 @@ def process_samples_after_sift(
 
 if __name__ == "__main__":
     # shhs1
-    sensor_name = "ABDO"  # ABDO / THOR / NEW（鼻气流）
-    raw_data_folder = settings.shhs1_raw_data_path
-    source_label_folder = settings.shhs1_source_sleep_apnea_label_path
-    sleep_apnea_label_folder = settings.shhs1_sleep_apnea_label_path
-    target_train_data_folder = settings.shhs1_train_data_path
-    target_validation_data_folder = settings.shhs1_validation_data_path
-    target_test_data_folder = settings.shhs1_test_data_path
-    samples_SA_intensity_filepath = path_join_output_folder(
-        settings.shhs1_samples_SA_intensity_info_filename
-    )
+    # sensor_name = "ABDO"  # ABDO / THOR / NEW（鼻气流）
+    # raw_data_folder = settings.shhs1_raw_data_path
+    # source_label_folder = settings.shhs1_source_sleep_apnea_label_path
+    # sleep_apnea_label_folder = settings.shhs1_sleep_apnea_label_path
+    # target_train_data_folder = settings.shhs1_train_data_path
+    # target_validation_data_folder = settings.shhs1_validation_data_path
+    # target_test_data_folder = settings.shhs1_test_data_path
+    # all_samples_SA_intensity_filepath = path_join_output_folder(
+    #     settings.shhs1_samples_SA_intensity_info_filename
+    # )
 
     # mesa
-    # sensor_name = "Abdo"  # Abdo / Thor / Flow（鼻气流）
-    # raw_data_folder = settings.mesa_raw_data_path
-    # source_label_folder = settings.mesa_source_sleep_apnea_label_path
-    # sleep_apnea_label_folder = settings.mesa_sleep_apnea_label_path
-    # target_train_data_folder = settings.mesa_train_data_path
-    # target_validation_data_folder = settings.mesa_validation_data_path
-    # target_test_data_folder = settings.mesa_test_data_path
-    # samples_SA_intensity_filepath = path_join_output_folder(settings.mesa_samples_SA_intensity_info_filename)
+    sensor_name = "Abdo"  # Abdo / Thor / Flow（鼻气流）
+    raw_data_folder = settings.mesa_raw_data_path
+    source_label_folder = settings.mesa_source_sleep_apnea_label_path
+    sleep_apnea_label_folder = settings.mesa_sleep_apnea_label_path
+    target_train_data_folder = settings.mesa_train_data_path
+    target_validation_data_folder = settings.mesa_validation_data_path
+    target_test_data_folder = settings.mesa_test_data_path
+    all_samples_SA_intensity_filepath = path_join_output_folder(
+        settings.mesa_samples_SA_intensity_info_filename
+    )
 
     check_path_exist(raw_data_folder, is_raise=True, is_create=False)
     check_path_exist(source_label_folder, is_raise=True, is_create=False)
     check_path_exist(sleep_apnea_label_folder, is_raise=True, is_create=False)
-    
+
     check_path_exist(target_train_data_folder, is_raise=False, is_create=True)
     check_path_exist(target_validation_data_folder, is_raise=False, is_create=True)
     check_path_exist(target_test_data_folder, is_raise=False, is_create=True)
+    
+    train_samples_SA_intensity_filepath, validate_samples_SA_intensity_filepath, test_samples_SA_intensity_filepath = \
+    generate_train_validate_test_SA_intensity_file(
+        all_samples_SA_intensity_filepath,
+        random_seed=42,
+        train_validate_test_ratio_dict={"train":7, "test": 2, "validate": 1}
+    )
 
-    # single_process_shhs_data_for_train_test("shhs1-204302", sensor_name, target_train_data_folder)
-    # process_all_data(target_train_data_folder, sensor_name, 0, 2400)
-    # process_all_data(target_test_data_folder, sensor_name, 2400, 3000)
-    # process_all_data(target_train_data_folder, sensor_name, 0, None)
+    ## Process one
+    # single_process_shhs_mesa_data_for_train_test(
+    #     "shhs1-204302",
+    #     sensor_name,
+    #     raw_data_folder,
+    #     source_label_folder,
+    #     sleep_apnea_label_folder,
+    #     target_train_data_folder,
+    # )
 
+    ## Multi process
+    ## Process all samples
+    # process_samples_after_sift(
+    #     raw_data_folder,
+    #     source_label_folder,
+    #     sleep_apnea_label_folder,
+    #     target_train_data_folder,
+    #     sensor_name,
+    #     all_samples_SA_intensity_filepath,
+    # )
+    ## Process train, validation, test samples seperately
     process_samples_after_sift(
         raw_data_folder,
         source_label_folder,
         sleep_apnea_label_folder,
         target_train_data_folder,
         sensor_name,
-        samples_SA_intensity_filepath,
+        train_samples_SA_intensity_filepath,
     )
-    # process_selected_samples(target_train_data_folder, sensor_name)
+    process_samples_after_sift(
+        raw_data_folder,
+        source_label_folder,
+        sleep_apnea_label_folder,
+        target_validation_data_folder,
+        sensor_name,
+        validate_samples_SA_intensity_filepath,
+    )
+    process_samples_after_sift(
+        raw_data_folder,
+        source_label_folder,
+        sleep_apnea_label_folder,
+        target_test_data_folder,
+        sensor_name,
+        test_samples_SA_intensity_filepath,
+    )
