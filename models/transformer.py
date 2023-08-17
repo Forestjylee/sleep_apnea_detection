@@ -285,7 +285,7 @@ class Embeddinglayer(tf.keras.layers.Layer):
         return pos / np.power(10000, (index - index % 2) / np.float32(self.d_model))
 
 
-def build_transformer_model(input_shape, class_num):
+def build_transformer_model(input_shape, class_num, lr=0.001):
     # Input Time-series
     inputs = tf.keras.layers.Input(shape=input_shape)
 
@@ -341,9 +341,9 @@ def build_transformer_model(input_shape, class_num):
     model = tf.keras.Model(inputs=inputs, outputs=logits)
 
     optimizer = tf.keras.optimizers.Adam(
-        learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, name="Adam"
+        learning_rate=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, name="Adam"
     )
-    # optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, name='GradientDescent')
+    # optimizer = tf.keras.optimizers.SGD(learning_rate=lr, name='GradientDescent')
     # model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
     model.compile(
         optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"]

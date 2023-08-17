@@ -401,28 +401,28 @@ def process_samples_after_sift(
 
 if __name__ == "__main__":
     # shhs1
-    # sensor_name = "ABDO"  # ABDO / THOR / NEW（鼻气流）
-    # raw_data_folder = settings.shhs1.raw_data_path
-    # source_label_folder = settings.shhs1.source_sleep_apnea_label_path
-    # sleep_apnea_label_folder = settings.shhs1.sleep_apnea_label_path
-    # target_train_data_folder = settings.shhs1.train_data_path
-    # target_validation_data_folder = settings.shhs1.validation_data_path
-    # target_test_data_folder = settings.shhs1.test_data_path
-    # all_samples_SA_intensity_filepath = path_join_output_folder(
-    #     settings.shhs1.samples_SA_intensity_info_filename
-    # )
+    sensor_name = "ABDO"  # ABDO / THOR / NEW（鼻气流）
+    raw_data_folder = settings.shhs1.raw_data_path
+    source_label_folder = settings.shhs1.source_sleep_apnea_label_path
+    sleep_apnea_label_folder = settings.shhs1.sleep_apnea_label_path
+    target_train_data_folder = settings.shhs1.train_data_path
+    target_validation_data_folder = settings.shhs1.validation_data_path
+    target_test_data_folder = settings.shhs1.test_data_path
+    all_samples_SA_intensity_filepath = path_join_output_folder(
+        settings.shhs1.samples_SA_intensity_info_filename
+    )
 
     # mesa
-    sensor_name = "Abdo"  # Abdo / Thor / Flow（鼻气流）
-    raw_data_folder = settings.mesa.raw_data_path
-    source_label_folder = settings.mesa.source_sleep_apnea_label_path
-    sleep_apnea_label_folder = settings.mesa.sleep_apnea_label_path
-    target_train_data_folder = settings.mesa.train_data_path
-    target_validation_data_folder = settings.mesa.validation_data_path
-    target_test_data_folder = settings.mesa.test_data_path
-    all_samples_SA_intensity_filepath = path_join_output_folder(
-        settings.mesa.samples_SA_intensity_info_filename
-    )
+    # sensor_name = "Abdo"  # Abdo / Thor / Flow（鼻气流）
+    # raw_data_folder = settings.mesa.raw_data_path
+    # source_label_folder = settings.mesa.source_sleep_apnea_label_path
+    # sleep_apnea_label_folder = settings.mesa.sleep_apnea_label_path
+    # target_train_data_folder = settings.mesa.train_data_path
+    # target_validation_data_folder = settings.mesa.validation_data_path
+    # target_test_data_folder = settings.mesa.test_data_path
+    # all_samples_SA_intensity_filepath = path_join_output_folder(
+    #     settings.mesa.samples_SA_intensity_info_filename
+    # )
 
     check_path_exist(raw_data_folder, is_raise=True, is_create=False)
     check_path_exist(source_label_folder, is_raise=True, is_create=False)

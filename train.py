@@ -1,109 +1,78 @@
-import os
-import time
 import glob
+import os
 import pickle
+import time
+from datetime import datetime
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import tensorflow as tf
-import matplotlib.pyplot as plt
+from alive_progress import alive_bar
+from tqdm import tqdm
+
 keras = tf.keras
+from imblearn.over_sampling import ADASYN, SMOTE, RandomOverSampler
 from keras.utils import to_categorical
 from sklearn.utils import class_weight as class_weight_obj
-from imblearn.over_sampling import RandomOverSampler, SMOTE, ADASYN
 
-from sleep_data_obj import SleepData
+from config import settings
 from models.transformer import build_transformer_model
-
-train_dataset_folder = r"E:\developer\PythonProject\Sleep\sleep_apnea_lab\shhs_experiment\train_data"
+from sleep_data_obj import SleepData
+from utils import label_interceptor, read_pickle, save_as_pickle
 
 # config GPU
 devices = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(devices[0], True)
 
-CLASSES_NUM = 2    # 分类数
-
 l2 = keras.regularizers.l2
-
-model_filepath = "latest_model.h5"
-
-
-def read_pickle(filename: str):
-    with open(filename, 'rb') as fr:
-        return pickle.load(fr)
-
-
-def save_as_pickle(data, filename: str):
-    with open(filename, 'wb') as fw:
-        pickle.dump(data, fw)
-
-
-def label_interceptor(label_list: list):
-    new_label_list = []
-    for label in label_list:
-        if label ==0:
-            new_label_list.append(0)
-        # elif label == 1:
-        #     new_label_list.append(2)
-        else:
-            new_label_list.append(1)
-    return new_label_list
 
 
 def get_train_and_validate_data(sensor_name: str):
-    record_names = []
+    train_record_names, validation_record_names = [], []
     X_train, y_train = [], []
     X_validation, y_validation = [], []
 
-    for name in glob.glob(f"train_data/*_{sensor_name}_X_data.pkl"):
-        record_name = name.split('\\')[1].split('_')[0]
-        if record_name not in record_names:
-            record_names.append(record_name)
-        
-    validation_record_names = record_names[-300:]
-    train_record_names = record_names[:-300] #  if index not in 
-    for record_name in tqdm(train_record_names, desc="Reading train data: "):
-        X_train.extend(read_pickle(os.path.join(train_dataset_folder, f"{record_name}_{sensor_name}_X_data.pkl")))
-        y_train.extend(read_pickle(os.path.join(train_dataset_folder, f"{record_name}_{sensor_name}_y_data.pkl")))
+    train_data_folder = Path(settings.shhs1.train_data_path)
+    with alive_bar(title="Loading train data") as pbar:
+        for each_train_data_path in train_data_folder.glob(f"*_{sensor_name}_X_data.pkl"):
+            train_data_name = each_train_data_path.name
+            record_name = train_data_name.split('_')[0]
+            X_train.extend(read_pickle(Path(train_data_folder, f"{record_name}_{sensor_name}_X_data.pkl").absolute()))
+            y_train.extend(read_pickle(Path(train_data_folder, f"{record_name}_{sensor_name}_y_data.pkl").absolute()))
+            pbar()
     
-    for record_name in tqdm(validation_record_names, desc="Reading validation_data"):
-        X_validation.extend(read_pickle(os.path.join(train_dataset_folder, f"{record_name}_{sensor_name}_X_data.pkl")))
-        y_validation.extend(read_pickle(os.path.join(train_dataset_folder, f"{record_name}_{sensor_name}_y_data.pkl")))
-        
+    validation_data_folder = Path(settings.shhs1.validation_data_path)
+    with alive_bar(title="Loading validation data") as pbar:
+        for each_validation_data_path in validation_data_folder.glob(f"*_{sensor_name}_X_data.pkl"):
+            validation_data_name = each_validation_data_path.name
+            record_name = validation_data_name.split('_')[0]
+            X_validation.extend(read_pickle(Path(validation_data_folder, f"{record_name}_{sensor_name}_X_data.pkl").absolute()))
+            y_validation.extend(read_pickle(Path(validation_data_folder, f"{record_name}_{sensor_name}_y_data.pkl").absolute()))
+            pbar()
+    
     y_train = label_interceptor(y_train)
     y_validation = label_interceptor(y_validation)
     
     # X_train, y_train = SMOTE(sampling_strategy="minority").fit_resample(X_train, y_train)
     
-    class_w = class_weight_obj.compute_class_weight('balanced', classes=np.unique(y_validation), y=y_validation)
-    print("Validation dataset data ratio:", class_w)    
-    # print(len(y_validation))
-    # for index in range(len(y_validation)):
-    #     if y_validation[index] == 1:
-    #         print(X_validation[index].transpose())
-    #         # exit(1)
-    #         plt.plot(X_validation[index].transpose()[0])
-    #         plt.show()
-    # exit(1)
     return np.array(X_train), np.array(X_validation), np.array(y_train), np.array(y_validation)
 
 
-def lr_schedule(epoch, lr):
-    # if epoch > 70 and \
-    #         (epoch - 1) % 10 == 0:
-    #     lr *= 0.1
-    print("Learning rate: ", lr)
-    return lr
-
-
-def train(epochs=30):
-    global_start_time = time.time()
+def train():
+    model_filepath = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{settings.train.model_name}.h5"
+    segment_length = int(settings.preprocess.window_length_secs * settings.preprocess.resample_rate)
     
-    model = build_transformer_model((300,1), CLASSES_NUM)
+    model = build_transformer_model((segment_length, 1), settings.train.class_num, lr=settings.train.learning_rate)
     
     print ('\nData Loaded. Compiling...\n')
     print('Loading data... ')
+    ## SHHS-1
     X_train, X_validation, y_train, y_validation= get_train_and_validate_data("ABDO")  # ABDO | THOR | NEW
+
+    ## MESA
+    # X_train, X_validation, y_train, y_validation= get_train_and_validate_data("ABDO")  # Abdo | Thor | Flow
 
     # feature engneering
     # print(X_train)
@@ -116,13 +85,11 @@ def train(epochs=30):
 
     print(class_w)
     
-    y_train = to_categorical(y_train, CLASSES_NUM)
-    y_validation = to_categorical(y_validation, CLASSES_NUM)
+    y_train = to_categorical(y_train, settings.train.class_num)
+    y_validation = to_categorical(y_validation, settings.train.class_num)
 
     try:
         print("Training...")
-        
-        lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lr_schedule)
         
         earlystop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=10)
         select_best_checkpoint = tf.keras.callbacks.ModelCheckpoint(
@@ -135,18 +102,17 @@ def train(epochs=30):
         #     0: 1,
         #     1: 4,
         # }
-        history = model.fit(X_train, y_train, epochs=epochs, batch_size=256, 
+        history = model.fit(X_train, y_train, epochs=settings.train.epochs, batch_size=settings.train.batch_size, 
                             class_weight=class_weight,
                             validation_data=(X_validation, y_validation),
                             # validation_split=0.1,
-                            callbacks=[earlystop_callback, select_best_checkpoint, lr_scheduler])
+                            callbacks=[earlystop_callback, select_best_checkpoint])
         pd.DataFrame(history.history).to_csv('training_log.csv', index=False)
 
         print(f"Save model to {model_filepath} success")
 
     except KeyboardInterrupt:
         print("prediction exception")
-        print ('Training duration (s) : ', time.time() - global_start_time)
         return model
 
 
@@ -165,5 +131,5 @@ def plot_history():
 
 
 if __name__ == '__main__':
-    train(epochs=10)
+    train()
     plot_history()

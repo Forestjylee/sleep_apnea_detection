@@ -1,3 +1,4 @@
+from alive_progress import alive_bar
 import os
 import pickle
 import random
@@ -132,9 +133,9 @@ def select_samples_from_all(
     sleep_apnea_label_folder: str,
     is_multiprocess: bool = True,
 ) -> typing.Dict[SleepApneaIntensity, typing.List[str]]:
-    check_path_exist(raw_data_folder)
-    check_path_exist(source_label_folder)
-    check_path_exist(sleep_apnea_label_folder)
+    check_path_exist(raw_data_folder, is_raise=True, is_create=False)
+    check_path_exist(source_label_folder, is_raise=True, is_create=False)
+    check_path_exist(sleep_apnea_label_folder, is_raise=True, is_create=False)
 
     all_samples_SA_intensity = {
         SleepApneaIntensity.Normal: [],
@@ -162,31 +163,29 @@ def select_samples_from_all(
                 all_samples_SA_intensity[res].append(record_name)
     else:
         label_file_names = os.listdir(sleep_apnea_label_folder)
-        pbar = tqdm(total=len(label_file_names))
-        pbar.set_description("Selecting samples")
-        update = lambda *args: pbar.update()
-        with Pool(processes=cpu_count() - 1) as pool:
-            m = Manager()
-            errors = m.Queue()
-            results = m.Queue()
-            for label_file_name in label_file_names:
-                record_name = label_file_name.split("_")[0]
-                pool.apply_async(
-                    _select_sample_according_to_rules,
-                    args=(
-                        record_name,
-                        sensor_names_to_check,
-                        raw_data_folder,
-                        source_label_folder,
-                        sleep_apnea_label_folder,
-                        results,
-                        errors,
-                    ),
-                    callback=update,
-                )
-            pool.close()
-            pool.join()
-        pbar.close()
+        with alive_bar(len(label_file_names), title="Selecting samples") as pbar:
+            update = lambda *args: pbar()
+            with Pool(processes=cpu_count() - 1) as pool:
+                m = Manager()
+                errors = m.Queue()
+                results = m.Queue()
+                for label_file_name in label_file_names:
+                    record_name = label_file_name.split("_")[0]
+                    pool.apply_async(
+                        _select_sample_according_to_rules,
+                        args=(
+                            record_name,
+                            sensor_names_to_check,
+                            raw_data_folder,
+                            source_label_folder,
+                            sleep_apnea_label_folder,
+                            results,
+                            errors,
+                        ),
+                        callback=update,
+                    )
+                pool.close()
+                pool.join()
 
         while not results.empty():
             tmp = results.get()
@@ -253,7 +252,7 @@ def select_samples_in_specific_amount(
             SleepApneaIntensity.Severe: [...]
         }
     """
-    check_path_exist(samples_SA_intensity_path)
+    check_path_exist(samples_SA_intensity_path, is_raise=True, is_create=False)
 
     samples_SA_intensity = read_pickle(samples_SA_intensity_path)
     for key in tqdm(list(samples_SA_intensity.keys()), desc="Selecting samples"):

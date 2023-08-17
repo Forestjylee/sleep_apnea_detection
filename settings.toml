@@ -31,3 +31,10 @@ low_pass_cutoff = 0.7
 low_pass_filter_order = 2
 high_pass_cutoff = 0.2
 high_pass_filter_order = 2
+
+[train]
+model_name = "cnn_transformer"
+class_num = 2
+epochs = 20
+batch_size = 256
+learning_rate = 0.001
