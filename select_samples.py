@@ -11,7 +11,8 @@ import numpy as np
 from tqdm import tqdm
 
 from config import settings
-from utils import check_path_exist, path_join_output_folder, read_pickle, save_as_pickle
+from utils import (check_path_exist, path_join_output_folder, read_pickle,
+                   save_as_pickle)
 
 
 class SleepApneaIntensity(Enum):
@@ -277,22 +278,22 @@ def select_samples_in_specific_amount(
 if __name__ == "__main__":
     ## Some data storage path
     ## shhs1
-    # sensors_to_check = ["ABDO", "THOR", "NEW"]
-    # raw_data_folder = settings.shhs1_raw_data_path
-    # source_label_folder = settings.shhs1_source_sleep_apnea_label_path
-    # sleep_apnea_label_folder = settings.shhs1_sleep_apnea_label_path
-    # samples_SA_intensity_path = path_join_output_folder(
-    #     settings.shhs1_samples_SA_intensity_info_filename
-    # )
+    sensors_to_check = ["ABDO", "THOR", "NEW"]
+    raw_data_folder = settings.shhs1.raw_data_path
+    source_label_folder = settings.shhs1.source_sleep_apnea_label_path
+    sleep_apnea_label_folder = settings.shhs1.sleep_apnea_label_path
+    samples_SA_intensity_path = path_join_output_folder(
+        settings.shhs1.samples_SA_intensity_info_filename
+    )
 
     ## mesa
-    sensors_to_check = ["Abdo", "Thor", "Flow"]
-    raw_data_folder = settings.mesa_raw_data_path
-    source_label_folder = settings.mesa_source_sleep_apnea_label_path
-    sleep_apnea_label_folder = settings.mesa_sleep_apnea_label_path
-    samples_SA_intensity_path = path_join_output_folder(
-        settings.mesa_samples_SA_intensity_info_filename
-    )
+    # sensors_to_check = ["Abdo", "Thor", "Flow"]
+    # raw_data_folder = settings.mesa.raw_data_path
+    # source_label_folder = settings.mesa.source_sleep_apnea_label_path
+    # sleep_apnea_label_folder = settings.mesa.sleep_apnea_label_path
+    # samples_SA_intensity_path = path_join_output_folder(
+    #     settings.mesa.samples_SA_intensity_info_filename
+    # )
 
     ## Generate all samples' sleep apnea intensity info file
     ## If you have already generated the file, just comment the following lines

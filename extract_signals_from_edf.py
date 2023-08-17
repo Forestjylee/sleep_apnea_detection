@@ -1,3 +1,4 @@
+from alive_progress import alive_bar
 import os
 import pickle
 import typing
@@ -89,12 +90,13 @@ def _shhs1_read_edf_file_and_save_raw_signal_data(
             ) as fw:
                 pickle.dump(data_to_save, fw)
     except Exception as e:
-        error_edf_names.put(edf_file_name)
+        error_edf_names.put({"filename": edf_file_name, "err_msg": repr(e)})
+        raise e
 
 
 def shhs1_process_all_edf_files():
-    source_edf_folder = settings.shhs1_source_edf_path
-    target_raw_signal_data_folder = settings.shhs1_raw_data_path
+    source_edf_folder = settings.shhs1.source_edf_path
+    target_raw_signal_data_folder = settings.shhs1.raw_data_path
     signal_channel_names_to_save = ["THOR RES", "ABDO RES", "NEW AIR"]
     
     check_path_exist(source_edf_folder)
@@ -102,25 +104,23 @@ def shhs1_process_all_edf_files():
 
     error_edf_names = Manager().Queue()
     edf_file_names = os.listdir(source_edf_folder)
-    pbar = tqdm(total=len(edf_file_names))
-    pbar.set_description('Processing edf files')
-    update = lambda *args: pbar.update()
-    with Pool(processes=cpu_count() - 1) as pool:
-        for edf_file_name in edf_file_names:
-            pool.apply_async(
-                _shhs1_read_edf_file_and_save_raw_signal_data,
-                args=(
-                    edf_file_name,
-                    source_edf_folder,
-                    target_raw_signal_data_folder,
-                    signal_channel_names_to_save,
-                    error_edf_names,
-                ),
-                callback=update,
-            )
-        pool.close()
-        pool.join()
-    pbar.close()
+    with alive_bar(len(edf_file_names), title="Processing edf files") as pbar:
+        update = lambda *args: pbar()
+        with Pool(processes=cpu_count() - 1) as pool:
+            for edf_file_name in edf_file_names:
+                pool.apply_async(
+                    _shhs1_read_edf_file_and_save_raw_signal_data,
+                    args=(
+                        edf_file_name,
+                        source_edf_folder,
+                        target_raw_signal_data_folder,
+                        signal_channel_names_to_save,
+                        error_edf_names,
+                    ),
+                    callback=update,
+                )
+            pool.close()
+            pool.join()
     
     print(f"Error edf file names: ")
     errs = []
@@ -156,13 +156,14 @@ def _mesa_read_edf_file_and_save_raw_signal_data(
             data_to_save["data"] = edf_file.readSignal(i)
             with open(os.path.join(target_raw_data_path, f"{record_name}_{signal_channel_names_to_save[channel_indexes_we_need.index(i)]}.pkl"), 'wb') as fw:
                 pickle.dump(data_to_save, fw)
-    except:
-        error_edf_names.put(edf_file_name)
+    except Exception as e:
+        error_edf_names.put({"filename": edf_file_name, "err_msg": repr(e)})
+        raise e
 
 
 def mesa_process_all_edf_files():
-    source_edf_folder = settings.mesa_source_edf_path
-    target_raw_signal_data_folder = settings.mesa_raw_data_path
+    source_edf_folder = settings.mesa.source_edf_path
+    target_raw_signal_data_folder = settings.mesa.raw_data_path
     signal_channel_names_to_save = ["SpO2", "Abdo", "Thor", "Flow"]
     
     check_path_exist(source_edf_folder)
@@ -170,25 +171,23 @@ def mesa_process_all_edf_files():
 
     error_edf_names = Manager().Queue()
     edf_file_names = os.listdir(source_edf_folder)
-    pbar = tqdm(total=len(edf_file_names))
-    pbar.set_description('Processing edf files')
-    update = lambda *args: pbar.update()
-    with Pool(processes=cpu_count() - 1) as pool:
-        for edf_file_name in edf_file_names:
-            pool.apply_async(
-                _mesa_read_edf_file_and_save_raw_signal_data,
-                args=(
-                    edf_file_name,
-                    source_edf_folder,
-                    target_raw_signal_data_folder,
-                    signal_channel_names_to_save,
-                    error_edf_names,
-                ),
-                callback=update,
-            )
-        pool.close()
-        pool.join()
-    pbar.close()
+    with alive_bar(len(edf_file_names), title="Processing edf files") as pbar:
+        update = lambda *args: pbar()
+        with Pool(processes=cpu_count() - 1) as pool:
+            for edf_file_name in edf_file_names:
+                pool.apply_async(
+                    _mesa_read_edf_file_and_save_raw_signal_data,
+                    args=(
+                        edf_file_name,
+                        source_edf_folder,
+                        target_raw_signal_data_folder,
+                        signal_channel_names_to_save,
+                        error_edf_names,
+                    ),
+                    callback=update,
+                )
+            pool.close()
+            pool.join()
     
     print(f"Error edf file names: ")
     errs = []

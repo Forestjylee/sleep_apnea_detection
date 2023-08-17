@@ -183,12 +183,21 @@ def plot_sensor_data_dict_and_label_data_use_matplotlib(
 
 
 if __name__ == "__main__":
-    raw_data_folder = settings.shhs1_raw_data_path
-    sleep_apnea_label_folder = settings.shhs1_sleep_apnea_label_path
+    ## SHHS-1 dataset
+    # raw_data_folder = settings.shhs1.raw_data_path
+    # sleep_apnea_label_folder = settings.shhs1.sleep_apnea_label_path
 
-    sensor_names = ["ABDO", "THOR", "NEW"]
-    record_name = "shhs1-200001"
-    sample_rate = settings.resample_rate
+    # sensor_names = ["ABDO", "THOR", "NEW"]
+    # record_name = "shhs1-200001"
+    # sample_rate = settings.preprocess.resample_rate
+    
+    ## MESA dataset
+    raw_data_folder = settings.mesa.raw_data_path
+    sleep_apnea_label_folder = settings.mesa.sleep_apnea_label_path
+
+    sensor_names = ["Abdo", "Thor", "Flow"]
+    record_name = "mesa-sleep-0006"
+    sample_rate = settings.preprocess.resample_rate
 
     ## Matplotlib(recommanded)
     plot_sensor_and_label_data_use_matplotlib(

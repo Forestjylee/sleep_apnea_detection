@@ -1,6 +1,7 @@
 import bisect
 import os
 import pickle
+import shutil
 import typing
 from copy import deepcopy
 
@@ -10,13 +11,30 @@ import pywt
 
 from config import settings
 
-
 SLEEP_APNEA_EVENT_MAPPER = {
     0: "Normal",
     1: "Hypopnea",
     2: "Obstructive apnea",
     3: "Central apnea",
 }
+
+
+def clear_folder(folder_path: str):
+    if os.path.exists(folder_path):
+        is_cover = False
+        while is_cover not in ["Y", "N", "y", "n"]:
+            is_cover = input(f"Are you sure to clear folder <{folder_path}> ([Y]/N)?")
+            if is_cover == '' or is_cover.lower() == "y":
+                try:
+                    shutil.rmtree(folder_path, ignore_errors=True)
+                    os.makedirs(folder_path, exist_ok=True)
+                    print("Clear finished!")
+                except:
+                    print("Clear failed!")
+                break
+            else:
+                print(f"Keep folder <{folder_path}>.")
+                break
 
 
 def check_path_exist(path, is_raise: bool = True, is_create: bool = False) -> bool:
@@ -44,8 +62,8 @@ def read_pickle(filepath: str):
 
 
 def path_join_output_folder(path: str):
-    check_path_exist(settings.output_root_folder, is_raise=False, is_create=True)
-    return os.path.join(settings.output_root_folder, path)
+    check_path_exist(settings.common_filepath.output_root_folder, is_raise=False, is_create=True)
+    return os.path.join(settings.common_filepath.output_root_folder, path)
 
 
 def label_interceptor(label_list: list):
@@ -56,8 +74,10 @@ def label_interceptor(label_list: list):
             normal_amount += 1
             new_label_list.append(0)
         else:
+            # two class
             new_label_list.append(1)
         # else:
+        #     # multi class
         #     new_label_list.append(label)
     print(
         f"Normal segments: {normal_amount}, abnormal segments: {len(label_list)-normal_amount}"
@@ -194,7 +214,7 @@ def plot_signal_decomp(data, w, title):
 
 
 def get_actual_sleep_duration_time(record_name: str, source_label_folder) -> int:
-    # I think the actucal sleep duration time is the start time of last WAKE stage
+    # I think the actucal sleep duration time is the start time of the last WAKE stage
     # So we need to get the last WAKE stage time
     label_xml_filepath = os.path.join(source_label_folder, f"{record_name}-nsrr.xml")
     sleep_duration_time = -1

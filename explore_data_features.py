@@ -203,12 +203,21 @@ def plot_signal_decomp(data, w, title):
 
 
 if __name__ == "__main__":
-    raw_data_folder = settings.shhs1_raw_data_path
-    sleep_apnea_label_folder = settings.shhs1_sleep_apnea_label_path
+    ## SHHS-1 dataset
+    raw_data_folder = settings.shhs1.raw_data_path
+    sleep_apnea_label_folder = settings.shhs1.sleep_apnea_label_path
 
     sensor_names = ["ABDO", "THOR", "NEW"]
     record_name = "shhs1-200001"
-    sample_rate = settings.sample_rate
+    sample_rate = settings.preprocess.resample_rate
+    
+    ## MESA dataset
+    # raw_data_folder = settings.mesa.raw_data_path
+    # sleep_apnea_label_folder = settings.mesa.sleep_apnea_label_path
+
+    # sensor_names = ["Abdo", "Thor", "Flow"]
+    # record_name = "mesa-sleep-0006"
+    # sample_rate = settings.preprocess.resample_rate
 
     # shhs1-200015 weak signal
     for record_file in glob.glob(os.path.join(raw_data_folder, f"*_ABDO.pkl")):

@@ -1,3 +1,4 @@
+from alive_progress import alive_bar
 import os
 import typing
 import pickle
@@ -51,36 +52,35 @@ def _shhs1_read_and_save_sleep_apnea_label_data(
                 line_index += 1
         save_label_data(record_name, target_label_folder, sleep_apnea_label_datas)
     except Exception as e:
-        error_label_files.put(source_label_path)
+        error_label_files.put({"path": source_label_path, "err_msg": repr(e)})
+        raise e
 
 
 def shhs1_process_all_label_files():
     error_label_files = Manager().Queue()
-    source_label_folder = settings.shhs1_source_sleep_apnea_label_path
-    target_label_folder = settings.shhs1_sleep_apnea_label_path
+    source_label_folder = settings.shhs1.source_sleep_apnea_label_path
+    target_label_folder = settings.shhs1.sleep_apnea_label_path
 
     check_path_exist(source_label_folder)
     check_path_exist(target_label_folder, is_create=True)
 
     label_file_names = os.listdir(source_label_folder)
-    pbar = tqdm(total=len(label_file_names))
-    pbar.set_description("Processing label files")
-    update = lambda *args: pbar.update()
-    with Pool(processes=cpu_count() - 1) as pool:
-        for label_file_name in label_file_names:
-            pool.apply_async(
-                _shhs1_read_and_save_sleep_apnea_label_data,
-                args=(
-                    label_file_name,
-                    source_label_folder,
-                    target_label_folder,
-                    error_label_files,
-                ),
-                callback=update,
-            )
-        pool.close()
-        pool.join()
-    pbar.close()
+    with alive_bar(len(label_file_names), title="Processing label files") as pbar:
+        update = lambda *args: pbar()
+        with Pool(processes=cpu_count() - 1) as pool:
+            for label_file_name in label_file_names:
+                pool.apply_async(
+                    _shhs1_read_and_save_sleep_apnea_label_data,
+                    args=(
+                        label_file_name,
+                        source_label_folder,
+                        target_label_folder,
+                        error_label_files,
+                    ),
+                    callback=update,
+                )
+            pool.close()
+            pool.join()
 
     if not error_label_files.empty():
         print(f"Error label file names: ")
@@ -129,36 +129,35 @@ def _mesa_read_and_save_sleep_apnea_label_datas(
                 line_index += 1
         save_label_data(record_name, target_label_folder, sleep_apnea_label_datas)
     except Exception as e:
-        error_label_files.put(source_label_path)
+        error_label_files.put({"path": source_label_path, "err_msg": repr(e)})
+        raise e
 
 
 def mesa_process_all_label_files():
     error_label_files = Manager().Queue()
-    source_label_folder = settings.mesa_source_sleep_apnea_label_path
-    target_label_folder = settings.mesa_sleep_apnea_label_path
+    source_label_folder = settings.mesa.source_sleep_apnea_label_path
+    target_label_folder = settings.mesa.sleep_apnea_label_path
 
     check_path_exist(source_label_folder)
     check_path_exist(target_label_folder, is_create=True)
 
     label_file_names = os.listdir(source_label_folder)
-    pbar = tqdm(total=len(label_file_names))
-    pbar.set_description("Processing label files")
-    update = lambda *args: pbar.update()
-    with Pool(processes=cpu_count() - 1) as pool:
-        for label_file_name in label_file_names:
-            pool.apply_async(
-                _mesa_read_and_save_sleep_apnea_label_datas,
-                args=(
-                    label_file_name,
-                    source_label_folder,
-                    target_label_folder,
-                    error_label_files,
-                ),
-                callback=update,
-            )
-        pool.close()
-        pool.join()
-    pbar.close()
+    with alive_bar(len(label_file_names), title="Processing label files") as pbar:
+        update = lambda *args: pbar()
+        with Pool(processes=cpu_count() - 1) as pool:
+            for label_file_name in label_file_names:
+                pool.apply_async(
+                    _mesa_read_and_save_sleep_apnea_label_datas,
+                    args=(
+                        label_file_name,
+                        source_label_folder,
+                        target_label_folder,
+                        error_label_files,
+                    ),
+                    callback=update,
+                )
+            pool.close()
+            pool.join()
 
     if not error_label_files.empty():
         print(f"Error label file names: ")
