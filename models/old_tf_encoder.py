@@ -255,7 +255,7 @@ class TransformerEncoder(tf.keras.layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-def build_transformer_encode_model(input_shape, class_num):
+def build_transformer_encode_model(input_shape, class_num, lr=0.001):
     # Input Time-series
     inputs = tf.keras.layers.Input(shape=input_shape)
     

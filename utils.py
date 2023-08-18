@@ -66,6 +66,11 @@ def path_join_output_folder(path: str):
     return os.path.join(settings.common_filepath.output_root_folder, path)
 
 
+def path_join_trained_models_folder(path: str):
+    check_path_exist(settings.train.trained_models_root_folder, is_raise=False, is_create=True)
+    return os.path.join(settings.train.trained_models_root_folder, path)
+
+
 def label_interceptor(label_list: list):
     new_label_list = []
     normal_amount = 0

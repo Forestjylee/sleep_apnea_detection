@@ -24,7 +24,7 @@ output_root_folder = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_ap
 [preprocess]
 resample_rate = 10
 window_length_secs = 10
-window_slide_stride_secs = 2
+window_slide_stride_secs = 4
 sleep_apnea_overlap_length_secs = 4
 
 low_pass_cutoff = 0.7
@@ -33,8 +33,9 @@ high_pass_cutoff = 0.2
 high_pass_filter_order = 2
 
 [train]
+trained_models_root_folder = "C:\\Users\\forestjylee\\Developer\\PythonProject\\sleep_apnea_detection\\trained_models"
 model_name = "cnn_transformer"
 class_num = 2
-epochs = 20
-batch_size = 256
+epochs = 10
+batch_size = 128
 learning_rate = 0.001

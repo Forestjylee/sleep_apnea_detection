@@ -269,8 +269,8 @@ def single_process_shhs_mesa_data_for_train_test(
                 
                 X_data_to_train_or_test.append([normed_train_data])
                 y_data_to_train_or_test.append(0)
-                start_index += segment_length_5s  # set start index
-                # start_index += segment_length
+                # start_index += segment_length_5s  # set start index
+                start_index += segment_length
             elif end_index > uniform_format_sleep_apnea_label_data[label_datas_index][0]:
                 begin_start_index = (
                     uniform_format_sleep_apnea_label_data[label_datas_index][0]
